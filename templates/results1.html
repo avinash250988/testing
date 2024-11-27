@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #FFF5E6;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            text-align: center;
+            color: #4A4A4A;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #F0E6D2;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #F9F2E6;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        a {
+            display: inline-block;
+            background-color: #4A4A4A;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        a:hover {
+            background-color: #333;
+        }
+        .collapsible {
+            background-color: #F0E6D2;
+            color: #4A4A4A;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .active, .collapsible:hover {
+            background-color: #E6D9C2;
+        }
+        .content {
+            padding: 0 18px;
+            display: none;
+            overflow: hidden;
+            background-color: #f1f1f1;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .content table {
+            width: 100%;
+        }
+        .potential-columns {
+            background-color: #F0E6D2;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .potential-columns h3 {
+            margin-top: 0;
+        }
+        .download-button, .bucket-button {
+            background-color: #4CAF50; /* Green */
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        #matchedColumnsTable {
+            border: 1px solid #ddd;
+        }
+        #matchedColumnsTable th, #matchedColumnsTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #matchedColumnsTable th {
+            background-color: #f2f2f2;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+        .container {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Search Results</h1>
+    <div class="container">
+        <h2>Current Database: {{ current_db }}</h2>
+        
+        <div class="potential-columns">
+            <h3>Potential Columns Extracted:</h3>
+            <ul>
+                {% for column in potential_columns %}
+                    <li>{{ column }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    
+    <form method="POST" action="/">
+        <h3>Select Tables to Display:</h3>
+        <input type="text" id="tableSearch" placeholder="Search tables..." onkeyup="filterTables()">
+        <button type="button" onclick="selectAll()">Select All</button>
+        <button type="button" onclick="unselectAll()">Unselect All</button>
+        <div id="tableList">
+            {% for table_name in results.keys() %}
+                <div class="table-item">
+                    <input type="checkbox" name="selected_tables" value="{{ table_name }}" {% if table_name in filtered_results %}checked{% endif %}>
+                    <label for="{{ table_name }}">{{ table_name }}</label>
+                </div>
+            {% endfor %}
+        </div>
+        <input type="hidden" name="html_content" value="{{ request.form['html_content'] }}">
+        <button type="submit">Filter</button>        
+    </form>
+
+    {% for table_name, table_data in filtered_results.items() %}
+        <h4>{{ table_name }}</h4>
+        {% if "Table Structure" in table_data %}
+            <h3>Table Structure</h3>
+            {% if table_data["Table Structure"] is string %}
+                <p>{{ table_data["Table Structure"] }}</p>
+            {% else %}
+                <table>
+                    <tr>
+                        <!--<th>Select</th>-->
+                        <th>Column Name</th>
+                        <th>Data Type</th>
+                        <th>Max Length</th>
+                    </tr>
+                    {% for column in table_data["Table Structure"] %}
+                        <tr>
+                            <!--<td><input type="checkbox" class="row-select"></td>-->
+                            <td>{{ column.COLUMN_NAME }}</td>
+                            <td>{{ column.DATA_TYPE }}</td>
+                            <td>{{ column.CHARACTER_MAXIMUM_LENGTH }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+        {% endif %}
+        {% for column_name, data in table_data.items() %}
+            {% if column_name != "Table Structure" %}
+                <h3>{{ column_name }}</h3>
+                {% if data is string %}
+                    <p>{{ data }}</p>
+                {% elif data is iterable and data|length > 0 %}
+                    {% if data[0] is mapping %}
+                        <button class="collapsible">View Data ({{ data|length }} records)</button>
+                        <div class="content">
+                            <table>
+                                <tr>
+                                    <th>Select</th>
+                                    {% for key in data[0].keys() %}
+                                        <th>{{ key }}</th>
+                                    {% endfor %}
+                                </tr>
+                                {% for row in data %}
+                                    <tr>
+                                        <td><input type="checkbox" class="row-select"></td>
+                                        {% for value in row.values() %}
+                                            <td>{{ value }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    {% else %}
+                        <ul>
+                            {% for item in data %}
+                                <li>{{ item }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% else %}
+                    <p>No data available for this column.</p>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+    
+    <button type="button" class="bucket-button" onclick="addToBucket()">Add to Bucket</button>
+    <button type="button" class="bucket-button" onclick="downloadBucket()">Download Bucket</button>
+
+    <div style="text-align: center;">
+        <a href="/">Back to Search</a>
+    </div>
+
+    <div class="container">
+        <h2>All Matched Columns View</h2>
+        <input type="text" id="columnSearch" placeholder="Search columns..." onkeyup="filterColumns()">
+        <div style="overflow-x: auto; overflow-y: auto; max-height: 400px;">
+            <table id="matchedColumnsTable" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        {% for column in all_columns %}
+                            <th class="column-header" data-index="{{ loop.index0 }}">
+                                <input type="checkbox" class="column-select-header" data-index="{{ loop.index0 }}">
+                                {{ column }}
+                            </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for i in range(max_length) %}
+                        <tr>
+                            {% for j in range(all_columns|length) %}
+                                <td>{{ column_data[j][i] if i < column_data[j]|length else '' }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <button type="button" onclick="selectAllColumns()">Select All Columns</button>
+        <button type="button" onclick="unselectAllColumns()">Unselect All</button>
+        <button type="button" onclick="downloadSelectedColumns()">Download Selected Columns</button>
+    </div>
+
+    <script>
+    var coll = document.getElementsByClassName("collapsible");
+    var i;
+
+    for (i = 0; i < coll.length; i++) {
+        coll[i].addEventListener("click", function() {
+            this.classList.toggle("active");
+            var content = this.nextElementSibling;
+            if (content.style.display === "block") {
+                content.style.display = "none";
+            } else {
+                content.style.display = "block";
+            }
+        });
+    }
+
+    function filterTables() {
+        var input, filter, tableList, tableItems, label, i, txtValue;
+        input = document.getElementById('tableSearch');
+        filter = input.value.toUpperCase();
+        tableList = document.getElementById("tableList");
+        tableItems = tableList.getElementsByClassName('table-item');
+
+        for (i = 0; i < tableItems.length; i++) {
+            label = tableItems[i].getElementsByTagName("label")[0];
+            txtValue = label.textContent || label.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                tableItems[i].style.display = "";
+            } else {
+                tableItems[i].style.display = "none";
+            }
+        }
+    }
+
+    function selectAll() {
+        var checkboxes = document.querySelectorAll('#tableList input[type="checkbox"]');
+        checkboxes.forEach(function(checkbox) {
+            checkbox.checked = true;
+        });
+    }
+
+    function unselectAll() {
+        var checkboxes = document.querySelectorAll('#tableList input[type="checkbox"]');
+        checkboxes.forEach(function(checkbox) {
+            checkbox.checked = false;
+        });
+    }
+
+    function prepareDownload() {
+        var selectedTables = [];
+        var checkboxes = document.querySelectorAll('#tableList input[type="checkbox"]:checked');
+        checkboxes.forEach(function(checkbox) {
+            selectedTables.push(checkbox.value);
+        });
+        document.getElementById('selectedTablesInput').value = JSON.stringify(selectedTables);
+        document.getElementById('downloadForm').submit();
+    }
+
+    function addToBucket() {
+        var selectedData = [];
+        document.querySelectorAll('.content table').forEach(function(table) {
+            var tableData = [];
+            var header = table.querySelector('th:nth-child(2)').textContent.trim(); // Get the second th as header
+            tableData.push(header); // Add header as the first element
+
+            table.querySelectorAll('tr').forEach(function(row) {
+                var checkbox = row.querySelector('td input[type="checkbox"]');
+                if (checkbox && checkbox.checked) {
+                    var value = row.cells[1].textContent.trim();
+                    tableData.push(value);
+                }
+            });
+            if (tableData.length > 1) { // Check if there's data beyond just the header
+                selectedData.push(tableData);
+            }
+        });
+
+        console.log("Data being sent to server:", selectedData);
+
+        fetch('/add_to_bucket', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: selectedData })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  alert('Data added to bucket successfully!');
+              }
+          });
+    }
+
+    function downloadBucket() {
+        window.location.href = '/download_bucket';
+    }
+
+    function downloadFilteredData() {
+        var visibleTables = Array.from(document.querySelectorAll('.content table:not([style*="display: none"])'));
+        
+        var tableData = visibleTables.map(table => {
+            var name = table.getAttribute('data-table-name') || 'Unknown Table';
+            var headers = Array.from(table.querySelectorAll('th')).map(th => th.textContent.trim());
+            var rows = Array.from(table.querySelectorAll('tr')).slice(1) // Skip header row
+                .map(row => Array.from(row.cells).map(cell => cell.textContent.trim()));
+            return { name, headers, rows };
+        });
+
+        fetch('/download_filtered', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: tableData })
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'filtered_data.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    }
+
+    function selectAllColumns() {
+        document.querySelectorAll('#matchedColumnsTable .column-select-header').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    }
+
+    function unselectAllColumns() {
+        document.querySelectorAll('#matchedColumnsTable .column-select-header').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    }
+
+    function downloadSelectedColumns() {
+        const selectedColumns = [];
+        const headers = [];
+
+        // Collect selected columns
+        document.querySelectorAll('#matchedColumnsTable .column-select-header:checked').forEach((checkbox) => {
+            const headerText = checkbox.parentElement.textContent.trim();
+            headers.push(headerText);
+            
+            const columnIndex = checkbox.getAttribute('data-index');
+            const columnData = [];
+            
+            document.querySelectorAll(`#matchedColumnsTable tbody tr`).forEach(row => {
+                columnData.push(row.cells[columnIndex].textContent.trim());
+            });
+            
+            selectedColumns.push(columnData);
+        });
+
+        // Prepare data for download
+        const dataToDownload = [headers]; // Start with headers
+        const maxRows = Math.max(...selectedColumns.map(col => col.length)); // Find the max length of columns
+
+        for (let i = 0; i < maxRows; i++) {
+            const row = [];
+            for (const col of selectedColumns) {
+                row.push(col[i] || ''); // Push data or empty string if undefined
+            }
+            dataToDownload.push(row);
+        }
+
+        fetch('/download_selected_columns', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data: dataToDownload })
+        })
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'selected_columns.csv';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        });
+    }
+
+    function filterColumns() {
+        var input, filter, table, th, i, txtValue;
+        input = document.getElementById('columnSearch');
+        filter = input.value.toUpperCase();
+        table = document.getElementById("matchedColumnsTable");
+        th = table.getElementsByClassName("column-header");
+
+        // Loop through all table headers, and hide those who don't match the search query
+        for (i = 0; i < th.length; i++) {
+            txtValue = th[i].textContent || th[i].innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                th[i].style.display = ""; // Show the header if a match is found
+                showColumn(i); // Show the corresponding column
+            } else {
+                th[i].style.display = "none"; // Hide the header if no match is found
+                hideColumn(i); // Hide the corresponding column
+            }
+        }
+    }
+
+    function showColumn(index) {
+        var table = document.getElementById("matchedColumnsTable");
+        var rows = table.getElementsByTagName("tr");
+        for (var i = 1; i < rows.length; i++) { // Start from 1 to skip the header row
+            rows[i].cells[index].style.display = "";
+        }
+    }
+
+    function hideColumn(index) {
+        var table = document.getElementById("matchedColumnsTable");
+        var rows = table.getElementsByTagName("tr");
+        for (var i = 1; i < rows.length; i++) { // Start from 1 to skip the header row
+            rows[i].cells[index].style.display = "none";
+        }
+    }
+    </script>
+</body>
+</html>

@@ -12,9 +12,9 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Needed for session management
 
 # Replace these with your actual Azure SQL Database connection details
-SERVER = 'avitestings.database.windows.net'
+SERVER = 'avitesting.database.windows.net'
 DATABASE = 'AdventureWorks2022'
-USERNAME = 'avi_testings_login'
+USERNAME = 'avi_testing_login'
 PASSWORD = 'Evry@2024'
 
 def get_connection():
